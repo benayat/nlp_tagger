@@ -1,24 +1,35 @@
-# python
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
-import torch.optim as optim
-
 from data_reader.ner_reader import NERReader
 from data_reader.pos_reader import POSReader
-from torch.utils.data import DataLoader, TensorDataset
-from data_reader.util import load_dataset_from_reader
-from model.mlp_pos_tagger import MLPPosTagger
+from data_reader.util import load_dataset_from_reader, load_test_dataset_from_reader
+from model.mlp_tagger import MLPTagger
+from model.util import create_optimizer_and_scheduler, train_one_epoch, evaluate
 
-# Reproducibility
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(42)
-
-reader = NERReader("data/ner/train")
+vendor_prefix = ''
+POS_TRAIN_PATH = 'data/pos/train'
+NER_TRAIN_PATH = 'data/ner/train'
+POS_DEV_PATH = 'data/pos/dev'
+NER_DEV_PATH = 'data/ner/dev'
+task = 'ner'
+reader = POSReader(POS_TRAIN_PATH) if task == 'pos' else NERReader(NER_TRAIN_PATH)
 
 X_train, y_train = load_dataset_from_reader(reader, "train")
-X_val, y_val = load_dataset_from_reader(reader, "data/ner/dev")
+X_val, y_val = load_dataset_from_reader(reader, POS_DEV_PATH) if task == 'pos' else load_dataset_from_reader(reader, NER_DEV_PATH)
+
+pos_params = {
+    'initial_lr': 1.5e-2, 'weight_decay':1e-4,'scheduler_patience': 0, 'scheduler_factor': 0.4, 'min_lr': 1e-3, 'epochs': 8, 'hidden_dim': 184
+}
+ner_params = {
+    'initial_lr': 1e-1, 'weight_decay':3e-4,'scheduler_patience': 0, 'scheduler_factor': 0.35, 'min_lr': 1e-5, 'epochs': 11, 'hidden_dim': 100
+}
+params = pos_params if task == 'pos' else ner_params
 
 # Create data loaders
-batch_size = 64
+batch_size = 16384
 train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
 
@@ -27,47 +38,49 @@ vocab_size = len(reader.vocab)
 pad_idx = reader.word_to_index[reader.pad_token]
 output_dim = len(reader.tag_vocab)
 
-model = MLPPosTagger(
+model = MLPTagger(
     vocab_size=vocab_size,
     embedding_dim=50,
-    hidden_dim=100,
+    hidden_dim=params['hidden_dim'],
     output_dim=output_dim,
     pad_idx=pad_idx,
-)
+).to(device)
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.004, weight_decay=1e-4)
+dev_losses = []
+dev_accuracies = []
 
-# Training loop
-epochs = 20
-for epoch in range(epochs):
-    model.train()
-    total_loss, total_correct, total_samples = 0, 0, 0
-    for X_batch, y_batch in train_loader:
-        optimizer.zero_grad()
-        logits = model(X_batch)
-        loss = criterion(logits, y_batch)
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
-        total_loss += loss.item() * X_batch.size(0)
-        total_correct += (logits.argmax(dim=1) == y_batch).sum().item()
-        total_samples += X_batch.size(0)
-    train_loss = total_loss / total_samples
-    train_acc = total_correct / total_samples
+pad_idx = reader.tag_to_index.get(reader.pad_tag, -100)
+o_idx = reader.tag_to_index.get("O")
+criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
+optimizer, scheduler = create_optimizer_and_scheduler(model, params['initial_lr'], params['weight_decay'], params['scheduler_patience'], params['scheduler_factor'], params['min_lr'])
+pad_idx = reader.tag_to_index.get(reader.pad_tag, -100)
+o_idx   = reader.tag_to_index.get("O") if isinstance(reader, NERReader) else None
+criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
 
-    model.eval()
-    val_loss, val_correct, val_samples = 0, 0, 0
-    with torch.no_grad():
-        for X_batch, y_batch in val_loader:
-            logits = model(X_batch)
-            loss = criterion(logits, y_batch)
-            val_loss += loss.item() * X_batch.size(0)
-            val_correct += (logits.argmax(dim=1) == y_batch).sum().item()
-            val_samples += X_batch.size(0)
-    val_loss /= val_samples
-    val_acc = val_correct / val_samples
+for epoch in range(params['epochs']):
+    train_loss, train_acc = train_one_epoch(
+        model, train_loader, criterion, optimizer, pad_idx, o_idx, device)
+    val_loss,   val_acc   = evaluate(
+        model, val_loader, criterion, pad_idx, o_idx, device)
+    dev_losses.append(val_loss)
+    dev_accuracies.append(val_acc)
+    scheduler.step(val_loss)
+    print(f"Ep {epoch+1:02d} | train loss: {train_loss:.4f} train accuracy:{train_acc:.4f} | "
+          f"val loss: {val_loss:.4f} val accuracy: {val_acc:.4f} | lr: {scheduler.get_last_lr()[0]:.1e}")
 
-    print(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_loss:.4f} Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
+# predict on the test set
+test_path = 'data/pos/test' if task == 'pos' else 'data/ner/test'
+test_loader = DataLoader(load_test_dataset_from_reader(reader, test_path), batch_size=batch_size)
 
-print("Training complete.")
+predictions = []
+for X_batch in test_loader:
+    X_batch = X_batch.to(device)
+    logits = model(X_batch)
+    preds = logits.argmax(dim=1)
+    predictions.append(preds.cpu())
+with open(f'test1.{task}', 'w') as f:
+    for batch in predictions:
+        for pred in batch:
+            tag = reader.get_tag_from_index(pred.item())  # Convert index to tag
+            f.write(f"{tag}\n")
+        f.write("\n")

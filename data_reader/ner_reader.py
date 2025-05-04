@@ -6,3 +6,4 @@ class NERReader(BaseSequenceReader):
     def _read_and_pad_sentences(self, file_path, is_test=False):
         blocks = read_file_lines(file_path)
         return process_sentences(blocks, self.pad_token, task='ner') if not is_test else process_sentences_for_test(blocks, self.pad_token)
+

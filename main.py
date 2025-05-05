@@ -1,9 +1,7 @@
 #  • Independent learning-rate & weight-decay for each param-group
 # ------------------------------------------------------------------
 from __future__ import annotations
-
 import argparse
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,10 +11,6 @@ from reader.ner_reader import NerReader
 from reader.pos_reader import PosReader
 from reader.utils import load_text_embeddings
 
-# ─────────────────────────────── configuration ──────────────────────────────
-
-
-# ───────────────────────────────── main ─────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", choices=["pos", "ner"], default="pos")

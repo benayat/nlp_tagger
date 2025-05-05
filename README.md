@@ -24,6 +24,7 @@ Hyperparameters such as learning rate, batch size, and training epochs are defin
 
 ## Results
 Training and validation results, including loss and accuracy, are logged during training.
+I recorded the successful runs logs in the file `results.md` for reference.
 
 ## Notes
 - The model automatically adjusts learning rate with a scheduler, and a manual intervention for the weight-decay adjustment. 

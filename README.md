@@ -17,7 +17,18 @@ This project implements a neural network-based model for sequence tagging tasks 
    - `--architecture`: Choose the model architecture: `simple`, `subword`, or `charcnn`. Default: `simple`.
    - `--pretrained`: Use pretrained embeddings (optional).
    - `--char-max-len`: Maximum character length for character-level CNNs. Default: `15`.
-
+5. for running by part: 
+- part-1: pos: `python main.py --task pos --architecture simple --hyper_param_group part-1`
+- part-1: ner: `python main.py --task ner --architecture simple --hyper_param_group part-1`
+- part-3: pos: `python main.py --task pos --architecture simple --pretrained --hyper_param_group part-3`
+- part-3: ner: `python main.py --task ner --architecture simple --pretrained --hyper_param_group part-3`
+- part-4: pos: `python main.py --task pos --architecture subword --hyper_param_group part-4`
+- part-4: ner: `python main.py --task ner --architecture subword --hyper_param_group part-4`
+- part-4: pos-pretrained: `python main.py --task pos --architecture subword --pretrained --hyper_param_group part-4`
+- part-4: ner-pretrained: `python main.py --task ner --architecture subword --pretrained --hyper_param_group part-4`
+- part-5: pos: `python main.py --task pos --architecture charcnn --hyper_param_group part-5`
+- part-5: ner: `python main.py --task ner --architecture charcnn --hyper_param_group part-4`
+- part-6: `python lm_script.py`
 
 ## Configuration
 Hyperparameters such as learning rate, batch size, and training epochs are defined in `constants/constants.py` under `HYPER_PARAMETER_SETS`.

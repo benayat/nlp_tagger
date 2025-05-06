@@ -62,7 +62,7 @@ def build_data_loader(data_reader: BaseReader, batch_size: int, split_label: str
     )
 
 
-def visualize_model_results(num_epochs, dev_accuracies, dev_losses, task):
+def visualize_model_results(num_epochs, dev_accuracies, dev_losses, task, part):
     epochs_range = range(1, num_epochs + 1)
 
     # Accuracy
@@ -73,6 +73,7 @@ def visualize_model_results(num_epochs, dev_accuracies, dev_losses, task):
     plt.title(f"Dev Accuracy per Epoch - {task.upper()}")
     plt.grid(True)
     plt.legend()
+    plt.savefig(fr"{part}/dev_accuracy_{task}.png")
     plt.show()
 
     # Loss
@@ -83,6 +84,7 @@ def visualize_model_results(num_epochs, dev_accuracies, dev_losses, task):
     plt.title(f"Dev Loss per Epoch - {task.upper()}")
     plt.grid(True)
     plt.legend()
+    plt.savefig(fr"{part}/dev_loss_{task}.png")
     plt.show()
 
 

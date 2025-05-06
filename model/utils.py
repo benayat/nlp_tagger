@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from reader.base_reader import BaseReader
 from reader.ner_reader import NerReader
+import matplotlib.pyplot as plt
 
 
 def calculate_masked_accuracy(predicted_indices: torch.Tensor,
@@ -50,6 +51,7 @@ def execute_epoch(model: nn.Module,
     accuracy = correct_total / token_total
     return average_loss, accuracy
 
+
 def build_data_loader(data_reader: BaseReader, batch_size: int, split_label: str, shuffle_flag: bool) -> DataLoader:
     windows_list, tag_indices = zip(*(data_reader.sliding_windows(split_label)))
     return DataLoader(
@@ -58,3 +60,32 @@ def build_data_loader(data_reader: BaseReader, batch_size: int, split_label: str
         shuffle=shuffle_flag,
         num_workers=4,
     )
+
+
+def visualize_model_results(num_epochs, dev_accuracies, dev_losses, task):
+    epochs_range = range(1, num_epochs + 1)
+
+    # Accuracy
+    plt.figure()
+    plt.plot(epochs_range, dev_accuracies, label="Validation Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title(f"Dev Accuracy per Epoch - {task.upper()}")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Loss
+    plt.figure()
+    plt.plot(epochs_range, dev_losses, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(f"Dev Loss per Epoch - {task.upper()}")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+
+def save_model(model: nn.Module, file_path: str) -> None:
+    torch.save(model.state_dict(), file_path)
+    print(f"Model saved to {file_path}")
